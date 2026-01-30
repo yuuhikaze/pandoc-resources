@@ -11,13 +11,17 @@ pkgs.mkShell {
     ln -sf ${resources-root}/tern-converters/pandoc.lua ~/.local/share/tern/converters/pandoc.lua
 
     # Locate docs dir (build)
-    DOCS_DIR=$(dirname "$(readlink -f "$0")")
-    DOCS_DIR="''${DOCS_DIR%/docs*}/docs"
+    ROOT_DIR=$(dirname "$(readlink -f "$0")")
+    DOCS_DIR="''${ROOT_DIR%/docs*}/docs"
 
     # Symlink pandoc-templates into docs dir
     mkdir -p "$DOCS_DIR/pandoc-templates"
     ln -sf ${resources-root}/pandoc-templates/docs.html "$DOCS_DIR/pandoc-templates"
     ln -sf ${resources-root}/pandoc-templates/docs.css "$DOCS_DIR/pandoc-templates"
+
+    # Symlink resources dir into docs dir, e.g resources/images, resources/audio
+    mkdir -p "$ROOT_DIR/docs-src/resources"
+    ln -sf "$ROOT_DIR/docs-src/resources" "$ROOT_DIR/docs"
 
     # Export convenience environment variables
     export PANDOC_DOCS_HTML="/pandoc-templates/docs.html"
