@@ -1372,13 +1372,9 @@ details svg:not(.img-wrapper svg) {
   height: 100vh;
   background-color: rgba(0, 0, 0, 0);
   backdrop-filter: blur(0px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 9999;
   opacity: 0;
   transition: opacity 0.2s, background-color 0.2s, backdrop-filter 0.2s;
-  cursor: zoom-out;
 }
 
 .img-maximized-overlay.active {
@@ -1387,43 +1383,74 @@ details svg:not(.img-wrapper svg) {
   backdrop-filter: blur(5px);
 }
 
+/* Canvas container for pan/zoom */
+.img-maximized-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.img-maximized-canvas:active {
+  cursor: grabbing;
+}
+
 /* Content container for maximized image */
 .img-maximized-content {
   position: relative;
-  max-width: 95vw;
-  max-height: 95vh;
-  padding: 20px;
-  transform: scale(0.9);
-  transition: transform 0.2s;
-}
-
-.img-maximized-overlay.active .img-maximized-content {
-  transform: scale(1);
+  transform-origin: center center;
+  will-change: transform;
+  transition: none;
 }
 
 /* The maximized image itself */
 .img-maximized {
-  max-width: 100%;
-  max-height: 90vh;
-  width: auto;
-  height: auto;
   display: block;
   border-radius: 3px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   cursor: default;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
-/* Close button (X) in top-right */
-.img-close-btn {
+/* Controls container (fixed position, doesn't move with pan/zoom) */
+.img-maximized-controls {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 15px;
+  right: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 10000;
+}
+
+/* Zoom indicator */
+.img-zoom-indicator {
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: monospace;
+  min-width: 50px;
+  text-align: center;
+}
+
+/* Control buttons (close, reset) */
+.img-control-btn,
+.img-close-btn {
   background-color: rgba(255, 255, 255, 0.95);
   border: 1px solid #ddd;
-  border-radius: 3px;
+  border-radius: 4px;
   width: 36px;
   height: 36px;
-  font-size: 24px;
+  font-size: 20px;
   line-height: 1;
   color: #666;
   cursor: pointer;
@@ -1434,12 +1461,14 @@ details svg:not(.img-wrapper svg) {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+.img-control-btn:hover,
 .img-close-btn:hover {
   background-color: #f4f4f4;
   color: #333;
   border-color: #ccc;
 }
 
+.img-control-btn:active,
 .img-close-btn:active {
   background-color: #e8e8e8;
 }

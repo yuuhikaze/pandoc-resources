@@ -207,6 +207,10 @@
               const overlay = document.createElement('div');
               overlay.className = 'img-maximized-overlay';
 
+              // Create canvas container (handles pan/zoom transforms)
+              const canvas = document.createElement('div');
+              canvas.className = 'img-maximized-canvas';
+
               // Create content container
               const content = document.createElement('div');
               content.className = 'img-maximized-content';
@@ -215,79 +219,244 @@
               const maximizedElement = element.cloneNode(true);
               maximizedElement.className = 'img-maximized';
               
-              // For images (including SVG files loaded via <img>), ensure proper sizing
+              // Determine base dimensions for the image
+              let baseWidth, baseHeight;
+              const isSvg = element.tagName === 'IMG' && element.src && element.src.toLowerCase().endsWith('.svg');
+              
               if (element.tagName === 'IMG') {
                 const natWidth = element.naturalWidth || element.clientWidth;
                 const natHeight = element.naturalHeight || element.clientHeight;
-                const isSvg = element.src && element.src.toLowerCase().endsWith('.svg');
                 
                 if (natWidth && natHeight) {
-                  const maxW = window.innerWidth * 0.9;
-                  const maxH = window.innerHeight * 0.9;
+                  const maxW = window.innerWidth * 0.85;
+                  const maxH = window.innerHeight * 0.85;
                   const aspectRatio = natWidth / natHeight;
                   
-                  // For SVGs, scale up to fill viewport (they're vector, no quality loss)
-                  // For raster images, don't scale beyond natural size
-                  let targetW, targetH;
                   if (isSvg) {
-                    // Scale to fit viewport while maintaining aspect ratio
+                    // Scale SVG to fit viewport initially
                     if (maxW / aspectRatio <= maxH) {
-                      targetW = maxW;
-                      targetH = maxW / aspectRatio;
+                      baseWidth = maxW;
+                      baseHeight = maxW / aspectRatio;
                     } else {
-                      targetH = maxH;
-                      targetW = maxH * aspectRatio;
+                      baseHeight = maxH;
+                      baseWidth = maxH * aspectRatio;
                     }
-                    // Add white background for SVGs (they often have transparent backgrounds)
+                    // Add white background for SVGs
                     maximizedElement.style.backgroundColor = '#ffffff';
                     maximizedElement.style.padding = '20px';
                     maximizedElement.style.borderRadius = '8px';
                   } else {
-                    // For raster images, don't exceed natural dimensions
+                    // For raster images, start at natural size or fit to viewport
                     const ratio = Math.min(maxW / natWidth, maxH / natHeight, 1);
-                    targetW = natWidth * ratio;
-                    targetH = natHeight * ratio;
+                    baseWidth = natWidth * ratio;
+                    baseHeight = natHeight * ratio;
                   }
                   
-                  maximizedElement.style.width = Math.round(targetW) + 'px';
-                  maximizedElement.style.height = Math.round(targetH) + 'px';
+                  maximizedElement.style.width = Math.round(baseWidth) + 'px';
+                  maximizedElement.style.height = Math.round(baseHeight) + 'px';
                 }
               }
 
-              // Create close button
+              // Create controls container
+              const controls = document.createElement('div');
+              controls.className = 'img-maximized-controls';
+              
+              // Zoom indicator
+              const zoomIndicator = document.createElement('span');
+              zoomIndicator.className = 'img-zoom-indicator';
+              zoomIndicator.textContent = '100%';
+              
+              // Reset button
+              const resetBtn = document.createElement('button');
+              resetBtn.className = 'img-control-btn';
+              resetBtn.innerHTML = '⟲';
+              resetBtn.setAttribute('title', 'Reset zoom (R)');
+              
+              // Close button
               const closeBtn = document.createElement('button');
               closeBtn.className = 'img-close-btn';
               closeBtn.innerHTML = '×';
               closeBtn.setAttribute('title', 'Close (ESC)');
+              
+              controls.appendChild(zoomIndicator);
+              controls.appendChild(resetBtn);
+              controls.appendChild(closeBtn);
 
               // Assemble
               content.appendChild(maximizedElement);
-              content.appendChild(closeBtn);
-              overlay.appendChild(content);
+              canvas.appendChild(content);
+              overlay.appendChild(canvas);
+              overlay.appendChild(controls);
               document.body.appendChild(overlay);
+
+              // Pan and zoom state
+              let scale = 1;
+              let panX = 0;
+              let panY = 0;
+              let isDragging = false;
+              let dragStartX = 0;
+              let dragStartY = 0;
+              let panStartX = 0;
+              let panStartY = 0;
+              
+              const updateTransform = function() {
+                content.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + scale + ')';
+                zoomIndicator.textContent = Math.round(scale * 100) + '%';
+              };
+              
+              const resetView = function() {
+                scale = 1;
+                panX = 0;
+                panY = 0;
+                updateTransform();
+              };
+
+              // Zoom with mouse wheel (zoom toward cursor position)
+              canvas.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left - rect.width / 2;
+                const mouseY = e.clientY - rect.top - rect.height / 2;
+                
+                const prevScale = scale;
+                const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                scale = Math.min(Math.max(scale * zoomFactor, 0.1), 20);
+                
+                // Adjust pan to zoom toward cursor
+                const scaleChange = scale / prevScale;
+                panX = mouseX - (mouseX - panX) * scaleChange;
+                panY = mouseY - (mouseY - panY) * scaleChange;
+                
+                updateTransform();
+              }, { passive: false });
+
+              // Pan with mouse drag
+              canvas.addEventListener('mousedown', function(e) {
+                if (e.button !== 0) return; // Left click only
+                if (e.target === closeBtn || e.target === resetBtn) return;
+                
+                isDragging = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                panStartX = panX;
+                panStartY = panY;
+                canvas.style.cursor = 'grabbing';
+                e.preventDefault();
+              });
+
+              document.addEventListener('mousemove', function moveHandler(e) {
+                if (!isDragging) return;
+                
+                panX = panStartX + (e.clientX - dragStartX);
+                panY = panStartY + (e.clientY - dragStartY);
+                updateTransform();
+              });
+
+              document.addEventListener('mouseup', function upHandler(e) {
+                if (isDragging) {
+                  isDragging = false;
+                  canvas.style.cursor = '';
+                }
+              });
+
+              // Touch support for mobile
+              let lastTouchDist = 0;
+              let lastTouchX = 0;
+              let lastTouchY = 0;
+              
+              canvas.addEventListener('touchstart', function(e) {
+                if (e.touches.length === 1) {
+                  isDragging = true;
+                  dragStartX = e.touches[0].clientX;
+                  dragStartY = e.touches[0].clientY;
+                  panStartX = panX;
+                  panStartY = panY;
+                } else if (e.touches.length === 2) {
+                  isDragging = false;
+                  lastTouchDist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                  );
+                  lastTouchX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                  lastTouchY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                }
+              }, { passive: true });
+
+              canvas.addEventListener('touchmove', function(e) {
+                if (e.touches.length === 1 && isDragging) {
+                  panX = panStartX + (e.touches[0].clientX - dragStartX);
+                  panY = panStartY + (e.touches[0].clientY - dragStartY);
+                  updateTransform();
+                  e.preventDefault();
+                } else if (e.touches.length === 2) {
+                  const dist = Math.hypot(
+                    e.touches[1].clientX - e.touches[0].clientX,
+                    e.touches[1].clientY - e.touches[0].clientY
+                  );
+                  const touchX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                  const touchY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                  
+                  if (lastTouchDist > 0) {
+                    const prevScale = scale;
+                    scale = Math.min(Math.max(scale * (dist / lastTouchDist), 0.1), 20);
+                    
+                    // Zoom toward pinch center
+                    const rect = canvas.getBoundingClientRect();
+                    const centerX = touchX - rect.left - rect.width / 2;
+                    const centerY = touchY - rect.top - rect.height / 2;
+                    const scaleChange = scale / prevScale;
+                    panX = centerX - (centerX - panX) * scaleChange;
+                    panY = centerY - (centerY - panY) * scaleChange;
+                  }
+                  
+                  lastTouchDist = dist;
+                  lastTouchX = touchX;
+                  lastTouchY = touchY;
+                  updateTransform();
+                  e.preventDefault();
+                }
+              }, { passive: false });
+
+              canvas.addEventListener('touchend', function(e) {
+                isDragging = false;
+                lastTouchDist = 0;
+              });
 
               // Trigger animation
               setTimeout(function() {
                 overlay.classList.add('active');
               }, 10);
 
-              // Close handlers
+              // Close handler
               const close = function() {
                 overlay.classList.remove('active');
                 setTimeout(function() {
                   overlay.remove();
                   document.body.style.overflow = '';
-                }, 200); // Match CSS transition time
+                }, 200);
               };
 
+              // Event listeners for controls and keyboard
               closeBtn.addEventListener('click', close);
+              resetBtn.addEventListener('click', resetView);
+              
               overlay.addEventListener('click', function(e) {
-                if (e.target === overlay) close();
+                if (e.target === overlay || e.target === canvas) close();
               });
+              
               document.addEventListener('keydown', function escHandler(e) {
                 if (e.key === 'Escape') {
                   close();
                   document.removeEventListener('keydown', escHandler);
+                } else if (e.key === 'r' || e.key === 'R') {
+                  resetView();
+                } else if (e.key === '+' || e.key === '=') {
+                  scale = Math.min(scale * 1.2, 20);
+                  updateTransform();
+                } else if (e.key === '-') {
+                  scale = Math.max(scale * 0.8, 0.1);
+                  updateTransform();
                 }
               });
             };
