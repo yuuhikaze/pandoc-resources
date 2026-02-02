@@ -238,6 +238,10 @@
                       targetH = maxH;
                       targetW = maxH * aspectRatio;
                     }
+                    // Add white background for SVGs (they often have transparent backgrounds)
+                    maximizedElement.style.backgroundColor = '#ffffff';
+                    maximizedElement.style.padding = '20px';
+                    maximizedElement.style.borderRadius = '8px';
                   } else {
                     // For raster images, don't exceed natural dimensions
                     const ratio = Math.min(maxW / natWidth, maxH / natHeight, 1);
